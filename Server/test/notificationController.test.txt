@@ -1,0 +1,421 @@
+// const notificationController = require('../controller/notificationController');
+// const Notification = require('../model/notificationModel');
+// const NotificationService = require('../service/notificationService');
+// const Goal = require('../model/goalsAndSavingsModel');
+// const Transaction = require('../model/transactionModel');
+// const Budget = require('../model/budgetModel');
+//
+// // Mock the models and services
+// jest.mock('../model/notificationModel');
+// jest.mock('../service/notificationService');
+// jest.mock('../model/goalsAndSavingsModel');
+// jest.mock('../model/transactionModel');
+// jest.mock('../model/budgetModel');
+//
+// describe('Notification Controller Tests', () => {
+//     let mockRequest;
+//     let mockResponse;
+//
+//     beforeEach(() => {
+//         // Reset all mocks
+//         jest.clearAllMocks();
+//
+//         // Setup mock request/response objects
+//         mockRequest = {
+//             params: {
+//                 id: 'user1'
+//             }
+//         };
+//         mockResponse = {
+//             status: jest.fn().mockReturnThis(),
+//             json: jest.fn()
+//         };
+//     });
+//
+//     describe('notifyDeadline', () => {
+//         test('should send notifications for goals with deadlines 3 days ahead', async () => {
+//             // Setup date for testing
+//             const today = new Date();
+//             const threeDaysFuture = new Date();
+//             threeDaysFuture.setDate(today.getDate() + 3);
+//
+//             // Mock data
+//             const mockGoals = [
+//                 {
+//                     _id: 'goal1',
+//                     name: 'Save for vacation',
+//                     userId: 'user1',
+//                     deadline: threeDaysFuture
+//                 }
+//             ];
+//
+//             const mockNotification = {
+//                 _id: 'notification1',
+//                 message: `Reminder: Your goal 'Save for vacation' is due in 3 days (${threeDaysFuture.toDateString()}). Stay on track!`
+//             };
+//
+//             // Setup mocks
+//             Goal.find.mockResolvedValue(mockGoals);
+//             NotificationService.createNotification.mockResolvedValue(mockNotification);
+//
+//             // Call the function
+//             await notificationController.notifyDeadline(mockRequest, mockResponse);
+//
+//             // // Assertions
+//             // expect(Goal.find).toHaveBeenCalledWith({
+//             //     userId: 'user1',
+//             //     deadline: expect.objectContaining({
+//             //         $gte: expect.any(Date),
+//             //         $lt: expect.any(Date)
+//             //     })
+//             // });
+//             expect(NotificationService.createNotification).toHaveBeenCalledWith(
+//                 'system',
+//                 'user1',
+//                 expect.stringContaining('Reminder: Your goal \'Save for vacation\' is due in 3 days'),
+//                 'deadline'
+//             );
+//             expect(mockResponse.status).toHaveBeenCalledWith(201);
+//             expect(mockResponse.json).toHaveBeenCalledWith({
+//                 message: 'Notifications sent',
+//                 notifications: [mockNotification]
+//             });
+//         });
+//
+//         test('should return appropriate message when no goals with upcoming deadlines', async () => {
+//             // Mock empty results
+//             Goal.find.mockResolvedValue([]);
+//
+//             // Call the function
+//             await notificationController.notifyDeadline(mockRequest, mockResponse);
+//
+//             // Assertions
+//             expect(Goal.find).toHaveBeenCalled();
+//             expect(NotificationService.createNotification).not.toHaveBeenCalled();
+//             expect(mockResponse.status).toHaveBeenCalledWith(200);
+//             expect(mockResponse.json).toHaveBeenCalledWith({
+//                 message: 'No goals with upcoming deadlines for this user'
+//             });
+//         });
+//
+//         // test('should handle errors gracefully', async () => {
+//         //     // Mock error without specific error message
+//         //     Goal.find.mockRejectedValue(new Error());
+//         //
+//         //     // Call the function
+//         //     await notificationController.notifyDeadline(mockRequest, mockResponse);
+//         //
+//         //     // Assertions
+//         //     expect(mockResponse.status).toHaveBeenCalledWith(500);
+//         //     expect(mockResponse.json).toHaveBeenCalledWith({
+//         //         message: 'An error occurred while processing deadline notifications'
+//         //     });
+//         // });
+//     });
+//
+//     describe('upcomingTransaction', () => {
+//         test('should send notifications for upcoming recurring transactions', async () => {
+//             // Mock data
+//             const mockTransactions = [
+//                 {
+//                     _id: 'transaction1',
+//                     userId: 'user1',
+//                     category: 'Subscription',
+//                     amount: 10,
+//                     currency: 'USD',
+//                     recurrence: true,
+//                     recurrencePattern: 'Daily',
+//                     startDate: new Date()
+//                 }
+//             ];
+//
+//             const mockNotification = {
+//                 _id: 'notification1',
+//                 message: 'Reminder: Your recurring transaction of 10 USD for \'Subscription\' is coming up soon.'
+//             };
+//
+//             // Setup mocks
+//             Transaction.find.mockResolvedValue(mockTransactions);
+//             NotificationService.createNotification.mockResolvedValue(mockNotification);
+//
+//             // Call the function
+//             await notificationController.upcomingTransaction(mockRequest, mockResponse);
+//
+//             // Assertions
+//             expect(Transaction.find).toHaveBeenCalledWith({ userId: 'user1', recurrence: true });
+//             expect(NotificationService.createNotification).toHaveBeenCalledWith(
+//                 'system',
+//                 'user1',
+//                 expect.stringContaining('Reminder: Your recurring transaction of 10 USD for \'Subscription\' is coming up soon.'),
+//                 'reminder'
+//             );
+//             expect(mockResponse.status).toHaveBeenCalledWith(200);
+//             expect(mockResponse.json).toHaveBeenCalledWith({
+//                 message: 'Upcoming transaction notifications sent',
+//                 notifications: [mockNotification]
+//             });
+//         });
+//
+//         test('should handle weekly recurring transactions correctly', async () => {
+//             // Create a date that's 3 days in the future
+//             const today = new Date();
+//             const threeDaysLater = new Date(today);
+//             threeDaysLater.setDate(today.getDate() + 3);
+//
+//             // Create a date 7 days before three days later (match weekly recurrence condition)
+//             const startDate = new Date(threeDaysLater);
+//             startDate.setDate(startDate.getDate() - 7);
+//
+//             // Mock data
+//             const mockTransactions = [
+//                 {
+//                     _id: 'transaction1',
+//                     userId: 'user1',
+//                     category: 'Gym',
+//                     amount: 20,
+//                     currency: 'USD',
+//                     recurrence: true,
+//                     recurrencePattern: 'Weekly',
+//                     startDate: startDate
+//                 }
+//             ];
+//
+//             const mockNotification = {
+//                 _id: 'notification1',
+//                 message: 'Reminder: Your recurring transaction of 20 USD for \'Gym\' is coming up soon.'
+//             };
+//
+//             // Setup mocks
+//             Transaction.find.mockResolvedValue(mockTransactions);
+//             NotificationService.createNotification.mockResolvedValue(mockNotification);
+//
+//             // Call the function
+//             await notificationController.upcomingTransaction(mockRequest, mockResponse);
+//
+//             // Assertions
+//             expect(Transaction.find).toHaveBeenCalledWith({ userId: 'user1', recurrence: true });
+//             expect(NotificationService.createNotification).toHaveBeenCalledWith(
+//                 'system',
+//                 'user1',
+//                 expect.stringContaining('Reminder: Your recurring transaction of 20 USD for \'Gym\' is coming up soon.'),
+//                 'reminder'
+//             );
+//         });
+//
+//         // test('should handle errors gracefully', async () => {
+//         //     // Mock error without specific error message
+//         //     Transaction.find.mockRejectedValue(new Error());
+//         //
+//         //     // Call the function
+//         //     await notificationController.upcomingTransaction(mockRequest, mockResponse);
+//         //
+//         //     // Assertions
+//         //     expect(mockResponse.status).toHaveBeenCalledWith(500);
+//         //     expect(mockResponse.json).toHaveBeenCalledWith({
+//         //         message: 'An error occurred while processing transaction notifications'
+//         //     });
+//         // });
+//     });
+//
+//     describe('upcomingGoals', () => {
+//         test('should send notifications for goals starting in a week', async () => {
+//             // Setup date for testing
+//             const today = new Date();
+//             const weekLater = new Date(today);
+//             weekLater.setDate(today.getDate() + 7);
+//
+//             // Mock data
+//             const mockGoals = [
+//                 {
+//                     _id: 'goal1',
+//                     name: 'Start investing',
+//                     userId: 'user1',
+//                     createdAt: weekLater
+//                 }
+//             ];
+//
+//             const mockNotification = {
+//                 _id: 'notification1',
+//                 message: `Reminder: Your goal 'Start investing' will start in a week (${weekLater.toDateString()}). Stay on track!`
+//             };
+//
+//             // Setup mocks
+//             Goal.find.mockResolvedValue(mockGoals);
+//             NotificationService.createNotification.mockResolvedValue(mockNotification);
+//
+//             // Call the function
+//             await notificationController.upcomingGoals(mockRequest, mockResponse);
+//
+//             // Assertions
+//             expect(Goal.find).toHaveBeenCalledWith({
+//                 userId: 'user1',
+//                 createdAt: expect.objectContaining({
+//                     $gte: expect.any(Date),
+//                     $lt: expect.any(Date)
+//                 })
+//             });
+//             expect(NotificationService.createNotification).toHaveBeenCalledWith(
+//                 'system',
+//                 'user1',
+//                 expect.stringContaining('Reminder: Your goal \'Start investing\' will start in a week'),
+//                 'upcoming_goal'
+//             );
+//             expect(mockResponse.status).toHaveBeenCalledWith(201);
+//             expect(mockResponse.json).toHaveBeenCalledWith({
+//                 message: 'Notifications sent',
+//                 notifications: [mockNotification]
+//             });
+//         });
+//
+//         test('should return appropriate message when no upcoming goals', async () => {
+//             // Mock empty results
+//             Goal.find.mockResolvedValue([]);
+//
+//             // Call the function
+//             await notificationController.upcomingGoals(mockRequest, mockResponse);
+//
+//             // Assertions
+//             expect(Goal.find).toHaveBeenCalled();
+//             expect(NotificationService.createNotification).not.toHaveBeenCalled();
+//             expect(mockResponse.status).toHaveBeenCalledWith(200);
+//             expect(mockResponse.json).toHaveBeenCalledWith({
+//                 message: 'No upcoming goals for this user.'
+//             });
+//         });
+//         //
+//         // test('should handle errors gracefully', async () => {
+//         //     // Mock error without specific error message
+//         //     Goal.find.mockRejectedValue(new Error());
+//         //
+//         //     // Call the function
+//         //     await notificationController.upcomingGoals(mockRequest, mockResponse);
+//         //
+//         //     // Assertions
+//         //     expect(mockResponse.status).toHaveBeenCalledWith(500);
+//         //     expect(mockResponse.json).toHaveBeenCalledWith({
+//         //         message: 'An error occurred while processing upcoming goals notifications'
+//         //     });
+//         // });
+//     });
+//
+//     describe('notifyBudget', () => {
+//         test('should send notifications for budgets that have been exceeded', async () => {
+//             // Mock data
+//             const mockBudgets = [
+//                 {
+//                     _id: 'budget1',
+//                     userId: 'user1',
+//                     category: 'Dining',
+//                     amount: 100,
+//                     spent: 110, // Exceeded
+//                 }
+//             ];
+//
+//             const mockNotification = {
+//                 _id: 'notification1',
+//                 message: 'Alert: Your budget for \'Dining\' has been exceeded! You spent 110 out of 100.'
+//             };
+//
+//             // Setup mocks
+//             Budget.find.mockResolvedValue(mockBudgets);
+//             NotificationService.createNotification.mockResolvedValue(mockNotification);
+//
+//             // Call the function
+//             await notificationController.notifyBudget(mockRequest, mockResponse);
+//
+//             // Assertions
+//             expect(Budget.find).toHaveBeenCalledWith({ userId: 'user1' });
+//             expect(NotificationService.createNotification).toHaveBeenCalledWith(
+//                 'system',
+//                 'user1',
+//                 expect.stringContaining('Alert: Your budget for \'Dining\' has been exceeded'),
+//                 'budget_exceeded'
+//             );
+//             expect(mockResponse.status).toHaveBeenCalledWith(200);
+//             expect(mockResponse.json).toHaveBeenCalledWith({
+//                 message: 'Budget notifications sent',
+//                 notifications: [mockNotification]
+//             });
+//         });
+//
+//         test('should send notifications for budgets that are nearing their limit', async () => {
+//             // Mock data
+//             const mockBudgets = [
+//                 {
+//                     _id: 'budget1',
+//                     userId: 'user1',
+//                     category: 'Entertainment',
+//                     amount: 100,
+//                     spent: 85, // 85% spent (over 80% threshold)
+//                 }
+//             ];
+//
+//             const mockNotification = {
+//                 _id: 'notification1',
+//                 message: 'Alert: Your budget for \'Entertainment\' is nearing the limit! You have spent 85 out of 100.'
+//             };
+//
+//             // Setup mocks
+//             Budget.find.mockResolvedValue(mockBudgets);
+//             NotificationService.createNotification.mockResolvedValue(mockNotification);
+//
+//             // Call the function
+//             await notificationController.notifyBudget(mockRequest, mockResponse);
+//
+//             // Assertions
+//             expect(Budget.find).toHaveBeenCalledWith({ userId: 'user1' });
+//             expect(NotificationService.createNotification).toHaveBeenCalledWith(
+//                 'system',
+//                 'user1',
+//                 expect.stringContaining('Alert: Your budget for \'Entertainment\' is nearing the limit'),
+//                 'budget_nearing'
+//             );
+//             expect(mockResponse.status).toHaveBeenCalledWith(200);
+//             expect(mockResponse.json).toHaveBeenCalledWith({
+//                 message: 'Budget notifications sent',
+//                 notifications: [mockNotification]
+//             });
+//         });
+//
+//         test('should return appropriate message when no budgets are exceeded or nearing limits', async () => {
+//             // Mock data with budget well under the threshold
+//             const mockBudgets = [
+//                 {
+//                     _id: 'budget1',
+//                     userId: 'user1',
+//                     category: 'Groceries',
+//                     amount: 100,
+//                     spent: 50, // Only 50% spent
+//                 }
+//             ];
+//
+//             // Setup mocks
+//             Budget.find.mockResolvedValue(mockBudgets);
+//
+//             // Call the function
+//             await notificationController.notifyBudget(mockRequest, mockResponse);
+//
+//             // Assertions
+//             expect(Budget.find).toHaveBeenCalledWith({ userId: 'user1' });
+//             expect(NotificationService.createNotification).not.toHaveBeenCalled();
+//             expect(mockResponse.status).toHaveBeenCalledWith(200);
+//             expect(mockResponse.json).toHaveBeenCalledWith({
+//                 message: 'No budget limits exceeded or nearing'
+//             });
+//         });
+//
+//         // test('should handle errors gracefully', async () => {
+//         //     // Mock error without specific error message
+//         //     Budget.find.mockRejectedValue(new Error());
+//         //
+//         //     // Call the function
+//         //     await notificationController.notifyBudget(mockRequest, mockResponse);
+//         //
+//         //     // Assertions
+//         //     expect(mockResponse.status).toHaveBeenCalledWith(500);
+//         //     expect(mockResponse.json).toHaveBeenCalledWith({
+//         //         message: 'An error occurred while processing budget notifications'
+//         //     });
+//         // });
+//     });
+// });

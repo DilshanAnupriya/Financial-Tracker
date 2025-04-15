@@ -1,0 +1,191 @@
+config:
+  target: "http://localhost:3000/api/v1"
+  phases:
+    - duration: 5
+      arrivalRate: 2
+      name: "API Tests"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+
+scenarios:
+  - name: "User API Test Flow"
+    flow:
+      # 1. Register a new regular user with unique credentials
+      - post:
+          url: "/user/signup"
+          json:
+            username: "testuser_{{ $randomString(8) }}"
+            email: "testuser_{{ $randomString(8) }}@example.com"
+            password: "Password123!"
+            role: ["User"]
+          capture:
+            - json: "$.user._id"
+              as: "userId"
+            - json: "$.user.username"
+              as: "username"
+            - json: "$.user.email"
+              as: "userEmail"
+          expect:
+            - statusCode: 201
+
+      # 2. Register an admin user with unique credentials
+      - post:
+          url: "/user/signup"
+          json:
+            username: "adminuser_{{ $randomString(8) }}"
+            email: "adminuser_{{ $randomString(8) }}@example.com"
+            password: "AdminPass123!"
+            role: ["Admin"]
+          capture:
+            - json: "$.user._id"
+              as: "adminId"
+            - json: "$.user.username"
+              as: "adminUsername"
+            - json: "$.user.email"
+              as: "adminEmail"
+          expect:
+            - statusCode: 201
+
+      # 3. Login with regular user
+      - post:
+          url: "/user/login"
+          json:
+            email: "{{ userEmail }}"
+            password: "Password123!"
+          capture:
+            - json: "$.token"
+              as: "userToken"
+          expect:
+            - statusCode: 200
+
+      # 4. Login with admin user
+      - post:
+          url: "/user/login"
+          json:
+            email: "{{ adminEmail }}"
+            password: "AdminPass123!"
+          capture:
+            - json: "$.token"
+              as: "adminToken"
+          expect:
+            - statusCode: 200
+
+      # 5. Get all users (Admin only)
+      - get:
+          url: "/user/all-users"
+          headers:
+            Authorization: "Bearer {{ adminToken }}"
+          expect:
+            - statusCode: 200
+
+      # 6. Get user by ID (Both User and Admin)
+      - get:
+          url: "/user/user-by"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          qs:
+            id: "{{ userId }}"
+          expect:
+            - statusCode: 200
+
+      # 7. Get user by ID using Admin token
+      - get:
+          url: "/user/user-by"
+          headers:
+            Authorization: "Bearer {{ adminToken }}"
+          qs:
+            id: "{{ userId }}"
+          expect:
+            - statusCode: 200
+
+      # 8. Update user (User only)
+      - put:
+          url: "/user/update-user"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          json:
+            id: "{{ userId }}"
+            username: "updated_{{ username }}"
+            email: "{{ userEmail }}"
+          expect:
+            - statusCode: 200
+
+      # 9. Verify update by getting updated user
+      - get:
+          url: "/user/user-by"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          qs:
+            id: "{{ userId }}"
+          expect:
+            - statusCode: 200
+            - equals:
+                - "updated_{{ username }}"
+                - "$.user.username"
+
+      # 10. Try updating user with incorrect role (Admin trying to update user - should fail)
+      - put:
+          url: "/user/update-user"
+          headers:
+            Authorization: "Bearer {{ adminToken }}"
+          json:
+            id: "{{ userId }}"
+            username: "admin_trying_update_{{ username }}"
+          expect:
+            - statusCode: 404
+
+      # 11. Delete user (Admin only)
+      - delete:
+          url: "/user/delete-user/{{ userId }}"
+          headers:
+            Authorization: "Bearer {{ adminToken }}"
+          expect:
+            - statusCode: 200
+
+      # 12. Verify deletion by trying to get deleted user
+      - get:
+          url: "/user/user-by"
+          headers:
+            Authorization: "Bearer {{ adminToken }}"
+          qs:
+            id: "{{ userId }}"
+          expect:
+            - statusCode: 404
+
+      # 13. Create another user to test unauthorized access
+      - post:
+          url: "/user/signup"
+          json:
+            username: "testuser2_{{ $randomString(8) }}"
+            email: "testuser2_{{ $randomString(8) }}@example.com"
+            password: "Password123!"
+            role: ["User"]
+          capture:
+            - json: "$.user._id"
+              as: "userId2"
+            - json: "$.user.email"
+              as: "userEmail2"
+          expect:
+            - statusCode: 201
+
+      # 14. Login with second user
+      - post:
+          url: "/user/login"
+          json:
+            email: "{{ userEmail2 }}"
+            password: "Password123!"
+          capture:
+            - json: "$.token"
+              as: "userToken2"
+          expect:
+            - statusCode: 200
+
+      # 15. Test unauthorized delete (User trying to delete)
+      - delete:
+          url: "/user/delete-user/{{ adminId }}"
+          headers:
+            Authorization: "Bearer {{ userToken2 }}"
+          expect:
+            - statusCode: 404

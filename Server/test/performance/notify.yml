@@ -1,0 +1,88 @@
+config:
+  target: "http://localhost:3000/api/v1"
+  phases:
+    - duration: 2
+      arrivalRate: 5
+      name: "Warm up phase"
+    - duration: 5
+      arrivalRate: 10
+      rampTo: 20
+      name: "Ramp up load"
+    - duration: 10
+      arrivalRate: 20
+      name: "Sustained load"
+  variables:
+    userId:
+      - "67dd64b797bac4970833b10f"
+      - "6405f3d6e473821c70ae627b"
+      - "67dd1d7754603c69df8f2bc1"
+  plugins:
+    expect: {}
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+
+scenarios:
+  - name: "Test deadline notifications"
+    weight: 25
+    flow:
+      - get:
+          url: "/notifications/deadline/{{ userId }}"
+          expect:
+            - statusCode: [200, 201]
+            - contentType: "application/json"
+      - think: 1
+
+  - name: "Test upcoming transaction notifications"
+    weight: 25
+    flow:
+      - get:
+          url: "/notifications/upcoming-transaction/{{ userId }}"
+          expect:
+            - statusCode: 200
+            - contentType: "application/json"
+      - think: 1
+
+  - name: "Test upcoming goals notifications"
+    weight: 25
+    flow:
+      - get:
+          url: "/notifications/upcoming-goals/{{ userId }}"
+          expect:
+            - statusCode: [200, 201]
+            - contentType: "application/json"
+      - think: 1
+
+  - name: "Test budget notifications"
+    weight: 25
+    flow:
+      - get:
+          url: "/notifications/budget/{{ userId }}"
+          expect:
+            - statusCode: 200
+            - contentType: "application/json"
+      - think: 1
+
+  - name: "Mixed notification endpoints"
+    weight: 50
+    flow:
+      - get:
+          url: "/notifications/deadline/{{ userId }}"
+          expect:
+            - statusCode: [200, 201]
+      - think: 2
+      - get:
+          url: "/notifications/upcoming-transaction/{{ userId }}"
+          expect:
+            - statusCode: 200
+      - think: 1
+      - get:
+          url: "/notifications/upcoming-goals/{{ userId }}"
+          expect:
+            - statusCode: [200, 201]
+      - think: 2
+      - get:
+          url: "/notifications/budget/{{ userId }}"
+          expect:
+            - statusCode: 200

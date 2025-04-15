@@ -1,0 +1,260 @@
+config:
+  target: "http://localhost:3000/api/v1"
+  phases:
+    - duration: 5
+      arrivalRate: 2
+      name: "Budget API Load Test"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+  plugins:
+    expect: {}
+
+scenarios:
+  - name: "Budget API Test Scenario"
+    flow:
+      # User Registration and Authentication
+      - post:
+          url: "/user/signup"
+          json:
+            username: "testuser_{{ $timestamp }}_{{ $randomString(5) }}"
+            email: "testuser_{{ $timestamp }}_{{ $randomString(5) }}@example.com"
+            password: "TestPass123!"
+            role: ["User"]
+          capture:
+            - json: "$.data._id"
+              as: "userId"
+            - json: "$.data.email"
+              as: "userEmail"
+          expect:
+            - statusCode: 201
+            - hasProperty: "data._id"
+            - hasProperty: "data.email"
+
+      - post:
+          url: "/user/login"
+          json:
+            email: "{{ userEmail }}"
+            password: "TestPass123!"
+          capture:
+            # Updated to match your API response format
+            - json: "$.token"
+              as: "userToken"
+          expect:
+            - statusCode: 200
+            - hasProperty: "token"
+
+      # Create, Read, Update, Delete Budget Operations
+      - post:
+          url: "/budget/create-budget"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          json:
+            userId: "{{ userId }}"
+            category: "Food"
+            timePeriod: "Monthly"
+            amount: 500
+          capture:
+            - json: "$.data._id"
+              as: "budgetId"
+          expect:
+            - statusCode: 201
+            - hasProperty: "data._id"
+            - hasProperty: "data.category"
+            - hasProperty: "data.amount"
+
+      - get:
+          url: "/budget/find-by/{{ budgetId }}"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "data.category"
+            - equals:
+                - "{{ data.category }}"
+                - "Food"
+
+      - put:
+          url: "/budget/update-budget/{{ budgetId }}"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          json:
+            amount: 750
+            category: "Food"
+            timePeriod: "Monthly"
+          expect:
+            - statusCode: 200
+            - hasProperty: "message"
+
+      - get:
+          url: "/budget/find-by/{{ budgetId }}"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          expect:
+            - statusCode: 200
+            - equals:
+                - "{{ data.amount }}"
+                - 750
+
+      # Budget recommendations
+      - get:
+          url: "/budget/budget-recommendation/{{ userId }}"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          expect:
+            - statusCode: 200
+
+      # Create another budget for deletion test
+      - post:
+          url: "/budget/create-budget"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          json:
+            userId: "{{ userId }}"
+            category: "Entertainment"
+            timePeriod: "Monthly"
+            amount: 200
+          capture:
+            - json: "$.data._id"
+              as: "deleteBudgetId"
+          expect:
+            - statusCode: 201
+
+      # Delete budget
+      - delete:
+          url: "/budget/delete-budget/{{ deleteBudgetId }}"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          expect:
+            - statusCode: 200
+
+      # Verify deletion
+      - get:
+          url: "/budget/find-by/{{ deleteBudgetId }}"
+          headers:
+            Authorization: "Bearer {{ userToken }}"
+          expect:
+            - statusCode: 404
+
+  # Admin scenario using existing admin credentials
+  - name: "Admin API Test Scenario"
+    flow:
+      # Login with existing admin credentials
+      - post:
+          url: "/user/login"
+          json:
+            email: "anupriya@example.com"
+            password: "AdminPass123!"
+          capture:
+            - json: "$.token"
+              as: "adminToken"
+          expect:
+            - statusCode: 200
+            - hasProperty: "token"
+
+      # Admin specific operations
+      - get:
+          url: "/budget/find-all"
+          headers:
+            Authorization: "Bearer {{ adminToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "data"
+
+  # Access control testing with unique user names
+  - name: "Access Control Test Scenario"
+    flow:
+      # Create two users with unique identifiers
+      - post:
+          url: "/user/signup"
+          json:
+            username: "user1_{{ $timestamp }}_{{ $randomString(5) }}"
+            email: "user1_{{ $timestamp }}_{{ $randomString(5) }}@example.com"
+            password: "User1Pass123!"
+            role: ["User"]
+          capture:
+            - json: "$.data._id"
+              as: "user1Id"
+            - json: "$.data.email"
+              as: "user1Email"
+          expect:
+            - statusCode: 201
+
+      - post:
+          url: "/user/signup"
+          json:
+            username: "user2_{{ $timestamp }}_{{ $randomString(5) }}"
+            email: "user2_{{ $timestamp }}_{{ $randomString(5) }}@example.com"
+            password: "User2Pass123!"
+            role: ["User"]
+          capture:
+            - json: "$.data._id"
+              as: "user2Id"
+            - json: "$.data.email"
+              as: "user2Email"
+          expect:
+            - statusCode: 201
+
+      # Login both users
+      - post:
+          url: "/user/login"
+          json:
+            email: "{{ user1Email }}"
+            password: "User1Pass123!"
+          capture:
+            - json: "$.token"
+              as: "user1Token"
+          expect:
+            - statusCode: 200
+
+      - post:
+          url: "/user/login"
+          json:
+            email: "{{ user2Email }}"
+            password: "User2Pass123!"
+          capture:
+            - json: "$.token"
+              as: "user2Token"
+          expect:
+            - statusCode: 200
+
+      # User1 creates a budget
+      - post:
+          url: "/budget/create-budget"
+          headers:
+            Authorization: "Bearer {{ user1Token }}"
+          json:
+            userId: "{{ user1Id }}"
+            category: "Housing"
+            timePeriod: "Monthly"
+            amount: 1000
+          capture:
+            - json: "$.data._id"
+              as: "user1BudgetId"
+          expect:
+            - statusCode: 201
+
+      # User2 tries to access User1's budget (should fail)
+      - get:
+          url: "/budget/find-by/{{ user1BudgetId }}"
+          headers:
+            Authorization: "Bearer {{ user2Token }}"
+          expect:
+            - statusCode: 403
+
+      # User1 can access their own budget
+      - get:
+          url: "/budget/find-by/{{ user1BudgetId }}"
+          headers:
+            Authorization: "Bearer {{ user1Token }}"
+          expect:
+            - statusCode: 200
+
+      # Regular user trying to access admin-only endpoint
+      - get:
+          url: "/budget/find-all"
+          headers:
+            Authorization: "Bearer {{ user1Token }}"
+          expect:
+            - statusCode: 403
